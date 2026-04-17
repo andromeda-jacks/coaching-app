@@ -192,7 +192,7 @@ const AI_PROVIDERS = {
 
   // ── 브라우저 직접 호출 가능 ──
   claude:   { label:"Claude (Anthropic) ✅ 브라우저 OK", baseUrl:"https://api.anthropic.com", model:"claude-sonnet-4-20250514", authStyle:"anthropic", placeholder:"sk-ant-api...", group:"브라우저 직접 OK", cors:true },
-  gemini:   { label:"Google Gemini (AI Studio) ✅ 브라우저 OK", baseUrl:"https://generativelanguage.googleapis.com/v1beta/openai", model:"gemini-2.0-flash", authStyle:"bearer", placeholder:"AIza...", group:"브라우저 직접 OK", cors:true },
+  gemini:   { label:"Google Gemini (AI Studio) ✅ 브라우저 OK", baseUrl:"https://generativelanguage.googleapis.com/v1beta/openai", model:"gemini-2.0-flash", authStyle:"gemini-key", placeholder:"AIza...", group:"브라우저 직접 OK", cors:true },
   groq:     { label:"Groq ✅ 브라우저 OK", baseUrl:"https://api.groq.com/openai", model:"llama-3.3-70b-versatile", authStyle:"bearer", placeholder:"gsk_...", group:"브라우저 직접 OK", cors:true },
   together: { label:"Together AI ✅ 브라우저 OK", baseUrl:"https://api.together.xyz", model:"meta-llama/Llama-3.3-70B-Instruct-Turbo", authStyle:"bearer", placeholder:"...", group:"브라우저 직접 OK", cors:true },
   fireworks:{ label:"Fireworks AI ✅ 브라우저 OK", baseUrl:"https://api.fireworks.ai/inference", model:"accounts/fireworks/models/llama-v3p3-70b-instruct", authStyle:"bearer", placeholder:"fw_...", group:"브라우저 직접 OK", cors:true },
@@ -300,7 +300,11 @@ async function callAI(prompt, st) {
     const headers = { "Content-Type":"application/json" };
     if (key && preset.authStyle === "bearer") headers["Authorization"] = `Bearer ${key}`;
 
-    const r = await fetch(`${baseUrl}/v1/chat/completions`, {
+    // Gemini는 API Key를 query parameter로 전달 (Bearer로 보내면 중복 인증 에러 발생)
+    let endpoint = `${baseUrl}/v1/chat/completions`;
+    if (key && preset.authStyle === "gemini-key") endpoint += `?key=${encodeURIComponent(key)}`;
+
+    const r = await fetch(endpoint, {
       method:"POST", headers,
       body:JSON.stringify({ model, max_tokens:4096, messages:[{role:"user",content:prompt}] })
     });
