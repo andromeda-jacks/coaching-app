@@ -192,7 +192,7 @@ const AI_PROVIDERS = {
 
   // ── 브라우저 직접 호출 가능 ──
   claude:   { label:"Claude (Anthropic) ✅ 브라우저 OK", baseUrl:"https://api.anthropic.com", model:"claude-sonnet-4-20250514", authStyle:"anthropic", placeholder:"sk-ant-api...", group:"브라우저 직접 OK", cors:true },
-  gemini:   { label:"Google Gemini (AI Studio) ✅ 브라우저 OK", baseUrl:"https://generativelanguage.googleapis.com/v1beta", model:"gemini-2.0-flash", authStyle:"gemini", placeholder:"AIza...", group:"브라우저 직접 OK", cors:true },
+  gemini:   { label:"Google Gemini (AI Studio) ✅ 브라우저 OK", baseUrl:"https://generativelanguage.googleapis.com/v1beta", model:"gemini-2.5-flash", authStyle:"gemini", placeholder:"AIza...", group:"브라우저 직접 OK", cors:true },
   groq:     { label:"Groq ✅ 브라우저 OK", baseUrl:"https://api.groq.com/openai", model:"llama-3.3-70b-versatile", authStyle:"bearer", placeholder:"gsk_...", group:"브라우저 직접 OK", cors:true },
   together: { label:"Together AI ✅ 브라우저 OK", baseUrl:"https://api.together.xyz", model:"meta-llama/Llama-3.3-70B-Instruct-Turbo", authStyle:"bearer", placeholder:"...", group:"브라우저 직접 OK", cors:true },
   fireworks:{ label:"Fireworks AI ✅ 브라우저 OK", baseUrl:"https://api.fireworks.ai/inference", model:"accounts/fireworks/models/llama-v3p3-70b-instruct", authStyle:"bearer", placeholder:"fw_...", group:"브라우저 직접 OK", cors:true },
