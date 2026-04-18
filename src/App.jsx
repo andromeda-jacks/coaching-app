@@ -6,8 +6,7 @@ import {
   PenTool, Brain, RefreshCw, Sliders, BookOpen, Target, Eye, Award,
   HelpCircle, ArrowUpRight, Edit3, ClipboardList, FileDown,
 } from "lucide-react";
-import { Document, Packer, Paragraph, HeadingLevel, TextRun, AlignmentType } from "docx";
-import { saveAs } from "file-saver";
+// docx & file-saver: 동적 import (번들 분리 + Vercel 호환)
 
 /* ══════════════════════════════════════════════════════════════════
    2026 수업혁신사례연구대회 · 코칭 시스템 v5
@@ -1006,38 +1005,38 @@ function PlanPipeline({ st, dispatch }) {
   const exportDocx = async () => {
     const text = st.sections.plan?.content || "";
     if(!text) return;
+    const [{ Document: Doc, Packer: Pk, Paragraph: Para, HeadingLevel: HL, TextRun: TR, AlignmentType: AT }, { saveAs: sa }] =
+      await Promise.all([import("docx"), import("file-saver")]);
     const lines = text.split("\n");
     const children = [];
     for(const line of lines) {
       const trimmed = line.trim();
-      if(!trimmed) { children.push(new Paragraph({text:"",spacing:{after:100}})); continue; }
-      // Heading detection
+      if(!trimmed) { children.push(new Para({text:"",spacing:{after:100}})); continue; }
       const h1 = trimmed.match(/^#\s+(.+)/);
       const h2 = trimmed.match(/^##\s+(.+)/);
       const h3 = trimmed.match(/^###\s+(.+)/);
       const h4 = trimmed.match(/^####\s+(.+)/);
-      if(h1) { children.push(new Paragraph({text:h1[1],heading:HeadingLevel.HEADING_1,spacing:{before:300,after:150}})); }
-      else if(h2) { children.push(new Paragraph({text:h2[1],heading:HeadingLevel.HEADING_2,spacing:{before:240,after:120}})); }
-      else if(h3) { children.push(new Paragraph({text:h3[1],heading:HeadingLevel.HEADING_3,spacing:{before:200,after:100}})); }
-      else if(h4) { children.push(new Paragraph({text:h4[1],heading:HeadingLevel.HEADING_4,spacing:{before:160,after:80}})); }
+      if(h1) { children.push(new Para({text:h1[1],heading:HL.HEADING_1,spacing:{before:300,after:150}})); }
+      else if(h2) { children.push(new Para({text:h2[1],heading:HL.HEADING_2,spacing:{before:240,after:120}})); }
+      else if(h3) { children.push(new Para({text:h3[1],heading:HL.HEADING_3,spacing:{before:200,after:100}})); }
+      else if(h4) { children.push(new Para({text:h4[1],heading:HL.HEADING_4,spacing:{before:160,after:80}})); }
       else {
-        // Parse bold (**text**) and normal text
         const parts = trimmed.split(/(\*\*[^*]+\*\*)/g);
         const runs = parts.filter(Boolean).map(p => {
           const bm = p.match(/^\*\*(.+)\*\*$/);
-          if(bm) return new TextRun({text:bm[1],bold:true,size:22,font:"맑은 고딕"});
-          return new TextRun({text:p,size:22,font:"맑은 고딕"});
+          if(bm) return new TR({text:bm[1],bold:true,size:22,font:"맑은 고딕"});
+          return new TR({text:p,size:22,font:"맑은 고딕"});
         });
-        children.push(new Paragraph({children:runs,spacing:{after:80,line:360},alignment:AlignmentType.JUSTIFIED}));
+        children.push(new Para({children:runs,spacing:{after:80,line:360},alignment:AT.JUSTIFIED}));
       }
     }
-    const doc = new Document({
+    const doc = new Doc({
       styles:{default:{document:{run:{font:"맑은 고딕",size:22}}}},
       sections:[{properties:{page:{margin:{top:1440,right:1440,bottom:1440,left:1440}}},children}]
     });
-    const blob = await Packer.toBlob(doc);
+    const blob = await Pk.toBlob(doc);
     const title = st.topic ? st.topic.replace(/[^가-힣a-zA-Z0-9]/g,"_").slice(0,30) : "연구계획서";
-    saveAs(blob, title+"_계획서.docx");
+    sa(blob, title+"_계획서.docx");
   };
 
   return (
