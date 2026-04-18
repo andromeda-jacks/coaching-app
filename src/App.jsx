@@ -4,8 +4,10 @@ import {
   AlertCircle, Zap, Lightbulb, ArrowRight, Download, Upload, MapPin,
   RotateCcw, Copy, Loader, ChevronUp, Star, Play, Check, X, Home,
   PenTool, Brain, RefreshCw, Sliders, BookOpen, Target, Eye, Award,
-  HelpCircle, ArrowUpRight, Edit3, ClipboardList,
+  HelpCircle, ArrowUpRight, Edit3, ClipboardList, FileDown,
 } from "lucide-react";
+import { Document, Packer, Paragraph, HeadingLevel, TextRun, AlignmentType } from "docx";
+import { saveAs } from "file-saver";
 
 /* ══════════════════════════════════════════════════════════════════
    2026 수업혁신사례연구대회 · 코칭 시스템 v5
@@ -489,6 +491,11 @@ function buildPlanDirPrompt(st) {
 [r4] 현장 적합성 (10점): 실제 적용 가능한가?
 [r5] 연구 방법 (10점): 체계적 연구 설계인가?
 
+## 필수 준수 사항
+- 성취기준은 반드시 **2022 개정 교육과정** 기준으로 제시 (2015 개정 성취기준 사용 시 중대 감점)
+- AI 활용 시 구체적 도구명(예: 클로바노트, 뤼튼, ChatGPT, Canva AI, 구글 Gemini 등)과 수업 장면에서의 구체적 활용 방법을 명시
+- AI가 단순 보조가 아닌, 학습 과정을 근본적으로 변화시키는 역할로 설계
+
 ${refs ? `## 참고자료\n${refs}\n` : ""}
 ## 반드시 아래 JSON만 출력 (다른 텍스트 금지)
 \`\`\`json
@@ -511,7 +518,8 @@ function buildPlanStratPrompt(st, dir) {
 \`\`\`json
 {"strategies":[{"name":"전략명","desc":"3문장 설명","methods":["교수법1","도구2","평가3"],"scores":{"r1":0,"r2":0,"r3":0,"r4":0,"r5":0},"total":0,"why":"근거"}]}
 \`\`\`
-규칙: 3개, 같은 방향 안에서 실행 방법이 다를 것, ${st.grade||""} 학생 대상 현실적`;
+규칙: 3개, 같은 방향 안에서 실행 방법이 다를 것, ${st.grade||""} 학생 대상 현실적
+필수: 성취기준은 반드시 2022 개정 교육과정 기준. AI 도구는 구체적 서비스명+활용 장면 명시.`;
 }
 
 function buildPlanStructPrompt(st, dir, strat) {
@@ -533,7 +541,9 @@ function buildPlanStructPrompt(st, dir, strat) {
   "standards":["성취기준 코드+내용"]
 }
 \`\`\`
-규칙: 주차 12~16주, 성취기준은 2022 개정 교육과정, 연구문제는 측정 가능하게`;
+규칙: 주차 12~16주, 연구문제는 측정 가능하게
+필수: 성취기준은 반드시 2022 개정 교육과정(2024~2025 순차 적용) 기준 코드. 절대로 2015 개정 교육과정 성취기준을 사용하지 마세요.
+AI 활용 주차에는 구체적 AI 도구명(ChatGPT, Gemini, 뤼튼, 클로바노트, Canva AI 등)과 학생이 AI를 어떻게 사용하는지 구체적 장면을 명시.`;
 }
 
 function buildPlanDraftPrompt2(st, dir, strat, struct) {
@@ -569,9 +579,10 @@ ${winRefs ? `## 참고 우수작\n${winRefs}\n` : ""}
 1. **현직 교사가 직접 쓴 문체** — AI가 쓴 티가 나면 심사 감점
 2. 금지 표현: "~것입니다" 반복, "본 연구에서는", "이를 통해", "궁극적으로", "~할 수 있습니다" 남발, "다양한", "효과적인" 등 AI 상투어
 3. 권장 표현: "우리 반 아이들은", "수업 중 ~한 장면이 있었다", "~해 보니", "~고민했다", "~에서 힌트를 얻었다"
-4. 성취기준 코드를 정확히 인용 (예: [9국01-05])
-5. 학급 인원수, 수업 시수, 교실 환경 등 현실 조건 명시
-6. 마크다운 형식 (## 소제목, 표)`;
+4. 성취기준은 반드시 **2022 개정 교육과정** 코드만 사용 (절대 2015 개정 성취기준 사용 금지). 예: [6체02-01]이 2022 개정인지 반드시 확인
+5. AI 활용 시 구체적 도구명(ChatGPT, Gemini, 뤼튼, 클로바노트, Canva AI, 패들렛 AI 등) + "학생이 ~할 때 ~를 사용하여 ~한다"는 구체적 활용 장면 기술. "AI 기반 도구" 같은 추상적 표현 금지
+6. 학급 인원수, 수업 시수, 교실 환경 등 현실 조건 명시
+7. 마크다운 형식 (## 소제목, 표)`;
 }
 
 function buildPlanEvalPrompt2(planText) {
@@ -868,17 +879,16 @@ function PlanPipeline({ st, dispatch }) {
   const addLog = (m) => { setLogs(p=>[...p,{m,t:Date.now()}]); setTimeout(()=>{if(logRef.current)logRef.current.scrollTop=logRef.current.scrollHeight;},50); };
   const hasApi = st.apiProvider!=="none" && (st.apiKey || AI_PROVIDERS[st.apiProvider]?.authStyle==="none");
 
-  const PHASES = [{id:"directions",l:"방향 탐색",n:1},{id:"strategies",l:"전략 구체화",n:2},{id:"drafting",l:"본문 작성",n:3},{id:"feedback",l:"피드백 개선",n:4}];
-  const phaseNum = (pid) => { const i=PHASES.findIndex(p=>p.id===pid); return i>=0?i:phase==="done"?4:-1; };
+  const PHASES = [{id:"directions",l:"방향 탐색",n:1},{id:"pick_dir",l:"방향 선택",n:1},{id:"strategies",l:"전략 구체화",n:2},{id:"pick_strat",l:"전략 선택",n:2},{id:"drafting",l:"본문 작성",n:3},{id:"feedback",l:"피드백 개선",n:4}];
+  const phaseNum = (pid) => { const m={directions:0,pick_dir:0,strategies:1,pick_strat:1,drafting:2,feedback:3,done:4,error:-1}; return m[pid]??-1; };
 
-  const run = async () => {
+  // Phase 1: 방향 생성
+  const startPhase1 = async () => {
     if(busy.current||!hasApi) return;
     busy.current=true;
     setErr(null);setLogs([]);setDirs(null);setStrats(null);setStruct(null);
     setEv1(null);setEv2(null);setSelDir(null);setSelStrat(null);
-
     try {
-      // Phase 1: Directions
       setPhase("directions");
       addLog("Phase 1/4 — 연구 방향 3개를 분석 중...");
       const r1=await callAI(buildPlanDirPrompt(st),st);
@@ -887,37 +897,59 @@ function PlanPipeline({ st, dispatch }) {
       d1.directions.sort((a,b)=>(b.total||0)-(a.total||0));
       setDirs(d1.directions);
       setSelDir(0);
-      addLog(`✅ 방향 ${d1.directions.length}개 완료`);
+      addLog(`✅ 방향 ${d1.directions.length}개 완료 — 아래에서 선택하세요`);
       d1.directions.forEach((d,i)=>addLog(`  ${i===0?"⭐":"  "} ${d.name}: ${d.total}점`));
-      addLog(`→ 최고점 "${d1.directions[0].name}" 자동 선택`);
+      setPhase("pick_dir");
+    } catch(e) { setErr(e.message); setPhase("error"); addLog(`❌ ${e.message}`); }
+    busy.current=false;
+  };
 
-      // Phase 2: Strategies
+  // Phase 2: 전략 생성 (사용자가 방향 선택 후)
+  const startPhase2 = async () => {
+    if(busy.current||selDir===null||!dirs) return;
+    busy.current=true;
+    try {
+      const chosenDir=dirs[selDir];
+      addLog(`→ 방향 "${chosenDir.name}" 확정`);
       setPhase("strategies");
       addLog("Phase 2/4 — 핵심 전략 3개 설계 중...");
-      const r2=await callAI(buildPlanStratPrompt(st,d1.directions[0]),st);
+      const r2=await callAI(buildPlanStratPrompt(st,chosenDir),st);
       const d2=parseJSON(r2);
       if(!d2?.strategies?.length) throw new Error("전략 생성 실패");
       d2.strategies.sort((a,b)=>(b.total||0)-(a.total||0));
       setStrats(d2.strategies);
       setSelStrat(0);
-      addLog(`✅ 전략 ${d2.strategies.length}개 완료`);
+      addLog(`✅ 전략 ${d2.strategies.length}개 완료 — 아래에서 선택하세요`);
       d2.strategies.forEach((s,i)=>addLog(`  ${i===0?"⭐":"  "} ${s.name}: ${s.total}점`));
+      setPhase("pick_strat");
+    } catch(e) { setErr(e.message); setPhase("error"); addLog(`❌ ${e.message}`); }
+    busy.current=false;
+  };
 
-      // Phase 3: Structure + Draft
+  // Phase 3+4: 뼈대 → 본문 → 채점 → 개선 (사용자가 전략 선택 후 자동 진행)
+  const startPhase3 = async () => {
+    if(busy.current||selStrat===null||!strats||!dirs||selDir===null) return;
+    busy.current=true;
+    const chosenDir=dirs[selDir];
+    const chosenStrat=strats[selStrat];
+    addLog(`→ 전략 "${chosenStrat.name}" 확정`);
+    try {
+      // Structure
       setPhase("drafting");
       addLog("Phase 3/4 — 연구 뼈대 설계 중...");
-      const r3=await callAI(buildPlanStructPrompt(st,d1.directions[0],d2.strategies[0]),st);
+      const r3=await callAI(buildPlanStructPrompt(st,chosenDir,chosenStrat),st);
       const d3=parseJSON(r3);
       if(!d3?.researchQuestions) throw new Error("구조 설계 실패");
       setStruct(d3);
       addLog(`✅ 뼈대: 연구문제 ${d3.researchQuestions.length}개, ${(d3.weeklyPlan||[]).length}주 계획`);
 
+      // Draft
       addLog("계획서 본문 작성 중 (7쪽)...");
-      const r4=await callAI(buildPlanDraftPrompt2(st,d1.directions[0],d2.strategies[0],d3),st);
+      const r4=await callAI(buildPlanDraftPrompt2(st,chosenDir,chosenStrat,d3),st);
       dispatch({type:"SET_SECTION",id:"plan",data:{content:r4}});
       addLog(`✅ 초안 완성 (${r4.length}자)`);
 
-      // Phase 4: Eval + Improve
+      // Eval
       setPhase("feedback");
       addLog("Phase 4/4 — 자동 채점 중...");
       const r5=await callAI(buildPlanEvalPrompt2(r4),st);
@@ -944,7 +976,6 @@ function PlanPipeline({ st, dispatch }) {
         const delta=(d7?.total||0)-(d5.total||0);
         addLog(`✅ 최종: ${d7?.total||"?"}/70점 (${delta>=0?"+":""}${delta})`);
 
-        // 2nd round if still below 70%
         if((d7?.total||0)<49) {
           const weak2=(d7?.scores||[]).filter(s=>s.score<s.max*0.7);
           if(weak2.length>0) {
@@ -964,17 +995,50 @@ function PlanPipeline({ st, dispatch }) {
 
       setPhase("done");
       addLog("🎉 계획서 자동 생성 완료!");
-    } catch(e) {
-      setErr(e.message);
-      setPhase("error");
-      addLog(`❌ ${e.message}`);
-    }
+    } catch(e) { setErr(e.message); setPhase("error"); addLog(`❌ ${e.message}`); }
     busy.current=false;
   };
 
   const curPhase=phaseNum(phase);
   const finalEv=ev2||ev1;
   const toggle=(k)=>setExpanded(p=>({...p,[k]:!p[k]}));
+
+  const exportDocx = async () => {
+    const text = st.sections.plan?.content || "";
+    if(!text) return;
+    const lines = text.split("\n");
+    const children = [];
+    for(const line of lines) {
+      const trimmed = line.trim();
+      if(!trimmed) { children.push(new Paragraph({text:"",spacing:{after:100}})); continue; }
+      // Heading detection
+      const h1 = trimmed.match(/^#\s+(.+)/);
+      const h2 = trimmed.match(/^##\s+(.+)/);
+      const h3 = trimmed.match(/^###\s+(.+)/);
+      const h4 = trimmed.match(/^####\s+(.+)/);
+      if(h1) { children.push(new Paragraph({text:h1[1],heading:HeadingLevel.HEADING_1,spacing:{before:300,after:150}})); }
+      else if(h2) { children.push(new Paragraph({text:h2[1],heading:HeadingLevel.HEADING_2,spacing:{before:240,after:120}})); }
+      else if(h3) { children.push(new Paragraph({text:h3[1],heading:HeadingLevel.HEADING_3,spacing:{before:200,after:100}})); }
+      else if(h4) { children.push(new Paragraph({text:h4[1],heading:HeadingLevel.HEADING_4,spacing:{before:160,after:80}})); }
+      else {
+        // Parse bold (**text**) and normal text
+        const parts = trimmed.split(/(\*\*[^*]+\*\*)/g);
+        const runs = parts.filter(Boolean).map(p => {
+          const bm = p.match(/^\*\*(.+)\*\*$/);
+          if(bm) return new TextRun({text:bm[1],bold:true,size:22,font:"맑은 고딕"});
+          return new TextRun({text:p,size:22,font:"맑은 고딕"});
+        });
+        children.push(new Paragraph({children:runs,spacing:{after:80,line:360},alignment:AlignmentType.JUSTIFIED}));
+      }
+    }
+    const doc = new Document({
+      styles:{default:{document:{run:{font:"맑은 고딕",size:22}}}},
+      sections:[{properties:{page:{margin:{top:1440,right:1440,bottom:1440,left:1440}}},children}]
+    });
+    const blob = await Packer.toBlob(doc);
+    const title = st.topic ? st.topic.replace(/[^가-힣a-zA-Z0-9]/g,"_").slice(0,30) : "연구계획서";
+    saveAs(blob, title+"_계획서.docx");
+  };
 
   return (
     <div style={sCard}>
@@ -985,7 +1049,7 @@ function PlanPipeline({ st, dispatch }) {
           <div style={{fontSize:11,color:C.sub}}>제출 기한: 3.23~4.2 · [서식5] 준수</div>
         </div>
         {(phase==="idle"||phase==="done"||phase==="error") ? (
-          <button style={sBtn("#059669","#fff",false)} onClick={run} disabled={!hasApi}>
+          <button style={sBtn("#059669","#fff",false)} onClick={startPhase1} disabled={!hasApi}>
             <Zap size={14}/> {phase==="done"?"재생성":"자동 생성"}
           </button>
         ) : (
@@ -1050,7 +1114,7 @@ function PlanPipeline({ st, dispatch }) {
             {expanded.dirs?<ChevronUp size={14}/>:<ChevronDown size={14}/>}
           </div>
           {expanded.dirs && dirs.map((d,i)=>(
-            <div key={i} style={{background:i===selDir?"#eef2ff":"#f8fafc",borderRadius:10,padding:10,marginBottom:4,borderLeft:`3px solid ${i===selDir?C.primary:C.border}`}}>
+            <div key={i} onClick={()=>phase==="pick_dir"&&setSelDir(i)} style={{background:i===selDir?"#eef2ff":"#f8fafc",borderRadius:10,padding:10,marginBottom:4,borderLeft:`3px solid ${i===selDir?C.primary:C.border}`,cursor:phase==="pick_dir"?"pointer":"default",transition:"all .2s"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                 <span style={{fontSize:13,fontWeight:700,color:i===selDir?C.primary:C.text}}>
                   {i===selDir&&<Star size={11} fill={C.primary} color={C.primary} style={{verticalAlign:"middle",marginRight:3}}/>}{d.name}
@@ -1068,6 +1132,11 @@ function PlanPipeline({ st, dispatch }) {
               {d.why && <div style={{fontSize:10,color:C.muted,marginTop:3,lineHeight:1.4}}>{d.why}</div>}
             </div>
           ))}
+          {phase==="pick_dir" && (
+            <button style={{...sBtn(C.primary,"#fff",false),width:"100%",marginTop:6,padding:"10px 0",fontSize:13,fontWeight:700}} onClick={startPhase2}>
+              <ArrowRight size={14}/> 이 방향으로 진행 →
+            </button>
+          )}
         </div>
       )}
 
@@ -1079,7 +1148,7 @@ function PlanPipeline({ st, dispatch }) {
             {expanded.strats?<ChevronUp size={14}/>:<ChevronDown size={14}/>}
           </div>
           {expanded.strats && strats.map((s,i)=>(
-            <div key={i} style={{background:i===selStrat?"#f5f3ff":"#f8fafc",borderRadius:10,padding:10,marginBottom:4,borderLeft:`3px solid ${i===selStrat?"#7c3aed":C.border}`}}>
+            <div key={i} onClick={()=>phase==="pick_strat"&&setSelStrat(i)} style={{background:i===selStrat?"#f5f3ff":"#f8fafc",borderRadius:10,padding:10,marginBottom:4,borderLeft:`3px solid ${i===selStrat?"#7c3aed":C.border}`,cursor:phase==="pick_strat"?"pointer":"default",transition:"all .2s"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                 <span style={{fontSize:13,fontWeight:700,color:i===selStrat?"#7c3aed":C.text}}>
                   {i===selStrat&&<Star size={11} fill="#7c3aed" color="#7c3aed" style={{verticalAlign:"middle",marginRight:3}}/>}{s.name}
@@ -1093,6 +1162,11 @@ function PlanPipeline({ st, dispatch }) {
               {s.why && <div style={{fontSize:10,color:C.muted,marginTop:3,lineHeight:1.4}}>{s.why}</div>}
             </div>
           ))}
+          {phase==="pick_strat" && (
+            <button style={{...sBtn("#7c3aed","#fff",false),width:"100%",marginTop:6,padding:"10px 0",fontSize:13,fontWeight:700}} onClick={startPhase3}>
+              <ArrowRight size={14}/> 이 전략으로 생성 시작 →
+            </button>
+          )}
         </div>
       )}
 
@@ -1174,7 +1248,14 @@ function PlanPipeline({ st, dispatch }) {
         <div>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
             <div style={{fontSize:12,fontWeight:700}}>계획서 본문 {phase==="done"&&<span style={sPill(C.okLight,C.ok)}>완성</span>}</div>
-            <span style={{fontSize:10,color:C.muted}}>{st.sections.plan.content.length}자</span>
+            <div style={{display:"flex",alignItems:"center",gap:6}}>
+              <span style={{fontSize:10,color:C.muted}}>{st.sections.plan.content.length}자</span>
+              {phase==="done" && (
+                <button style={{...sBtn("#2563eb","#fff",true),fontSize:11,padding:"4px 10px"}} onClick={exportDocx}>
+                  <FileDown size={12}/> DOCX 내보내기
+                </button>
+              )}
+            </div>
           </div>
           <textarea value={st.sections.plan.content} rows={10}
             onChange={e=>dispatch({type:"SET_SECTION",id:"plan",data:{content:e.target.value}})}
